@@ -109,4 +109,4 @@ insert hash maxd bsize n t
 
 buildTrie :: HashFun -> Int -> Int -> [Int] -> Trie
 buildTrie hash maxd bsize ns
-  = foldl (flip (insert hash maxd bsize)) empty ns
+  = foldl' (flip (insert hash maxd bsize)) empty ns
