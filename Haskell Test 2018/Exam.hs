@@ -36,26 +36,38 @@ execFun (name, args, p) vs
 type State = [(Id, Int)]
 
 update :: (Id, Int) -> State -> State
-update 
-  = undefined
+update v@(i,_) vs = v:filter(\(i',_) -> i /= i') vs
+
 
 apply :: Op -> Int -> Int -> Int
-apply 
-  = undefined
+apply op a b = case op of
+  Add -> a + b
+  Mul -> a * b
+  Eq  -> if a == b then 1 else 0
+  Gtr -> if a > b  then 1 else 0
 
 eval :: Exp -> State -> Int
 -- Pre: the variables in the expression will all be bound in the given state 
 -- Pre: expressions do not contain phi instructions
-eval 
-  = undefined
+eval exp st
+  = case exp of
+    Const n      -> n
+    Var id       -> lookUp id st
+    Apply op a b -> apply op (eval a st) (eval b st)
 
 execStatement :: Statement -> State -> State
-execStatement 
-  = undefined
+execStatement (Assign id exp) st = update (id, eval exp st) st
+execStatement (If exp bk bk') st
+  | eval exp st == 1 = execBlock bk st
+  | otherwise        = execBlock bk' st
+execStatement ins@(DoWhile bk exp) st
+  | eval exp st' == 1 = execStatement ins st'
+  | otherwise = st'
+  where
+    st' = execBlock bk st 
 
 execBlock :: Block -> State -> State
-execBlock 
-  = undefined
+execBlock bk st = foldl' (flip(execStatement)) st bk
 
 ------------------------------------------------------------------------
 -- Given function for testing propagateConstants...
@@ -70,23 +82,72 @@ applyPropagate (name, args, body)
 
 foldConst :: Exp -> Exp
 -- Pre: the expression is in SSA form
-foldConst 
-  = undefined
+foldConst (Phi (Const c) (Const c'))
+  | c == c' = Const c
+foldConst exp@(Apply _ (Const _) (Const _)) = Const (eval exp [])
+foldConst (Apply Add (Var id) (Const 0)) = Var id 
+foldConst (Apply Add (Const 0) (Var id)) = Var id 
+foldConst exp = exp
+
 
 sub :: Id -> Int -> Exp -> Exp
 -- Pre: the expression is in SSA form
-sub 
-  = undefined
+-- Note: Final def catches const, and Var for variables other than id
+sub id n exp = (foldConst . traverse) exp
+  where
+    traverse :: Exp -> Exp
+    traverse (Var id') | id' == id = Const n
+    traverse (Apply op exp exp') = Apply op (sub id n exp) (sub id n exp')
+    traverse (Phi exp exp') = Phi (sub id n exp) (sub id n exp')
+    traverse exp = exp
 
 -- Use (by uncommenting) any of the following, as you see fit...
 -- type Worklist = [(Id, Int)]
 -- scan :: Id -> Int -> Block -> (Worklist, Block)
--- scan :: (Exp -> Exp) -> Block -> (Exp -> Exp, Block)
+
+empty :: Exp -> Exp
+empty exp = exp
+
+scan :: (Exp -> Exp) -> Block -> (Exp -> Exp, Block)
+scan sb bk = block sb bk
+  where
+    stat :: (Exp -> Exp) -> Statement -> (Exp -> Exp, Statement)
+    stat sb (Assign id exp)
+      = case exp' of
+        Const n -> (sub id n,Assign id exp')
+        _       -> (empty, Assign id exp')
+      where
+        exp' = sb exp
+    stat sb (If exp bk1 bk2) = (sb1'.sb2', If exp' bk1' bk2')
+      where
+        exp' = sb exp
+        (sb1', bk1') = block sb bk1
+        (sb2', bk2') = block sb bk2
+    stat sb (DoWhile bk exp) = (sb', DoWhile bk' (sb exp))
+      where
+        (sb', bk') = block sb bk
+  
+    block :: (Exp -> Exp) -> Block -> (Exp -> Exp, Block)
+    block sb bk = (foldl' (.) empty sbs, bkf)
+      where
+        (sbs, bk') = unzip $ map (stat sb) bk 
+        bkf = filter(\x -> 
+          case x of
+            Assign "$return" _ -> True
+            Assign _ (Const _) -> False
+            _                  -> True
+          ) bk'
  
 propagateConstants :: Block -> Block
 -- Pre: the block is in SSA form
-propagateConstants 
-  = undefined
+propagateConstants bk = bk'
+  where
+    rslt = iterate (uncurry(scan)) (empty, bk)
+    ((_,bk'),(_,_)) 
+      = head 
+      $ filter(\((_,b1),(_,b2)) -> b1 == b2) 
+      $ tail 
+      $ zip rslt (tail rslt)
 
 ------------------------------------------------------------------------
 -- Given functions for testing unPhi...
@@ -109,6 +170,8 @@ unPhi :: Block -> Block
 -- Pre: the block is in SSA form
 unPhi 
   = undefined
+
+-- 28 min left
 
 ------------------------------------------------------------------------
 -- Part IV
