@@ -140,15 +140,30 @@ combineSubs
   = foldr1 combine
 
 inferPolyType :: Expr -> Type
-inferPolyType
-  = undefined
+inferPolyType exp = (\(_,t,_) -> t) (inferPolyType' exp [] 0)
 
 -- You may optionally wish to use one of the following helper function declarations
 -- as suggested in the specification. 
 
--- inferPolyType' :: Expr -> TEnv -> [String] -> (Sub, Type, [String])
--- inferPolyType'
---   = undefined
+inferPolyType' :: Expr -> TEnv -> Int -> (Sub, Type, Int)
+inferPolyType' (Id id) env n 
+  = (env, tryToLookUp id (TVar (newname n)) env, n+1)
+inferPolyType' (Fun x e) env n
+  | te == TErr = (sb, TErr, n')
+  | otherwise = (sb, TFun (applySub sb (TVar (newname n))) te, n')
+    where
+      (sb, te, n') = inferPolyType' e ((x, TVar (newname n)):env) (n+1)
+inferPolyType' (App f a) env n = undefined
+inferPolyType' exp env s = (env, typ, s)
+  where
+    typ = case exp of
+      Number _  -> TInt
+      Boolean _ -> TBool
+
+newname :: Int -> String
+newname n = 't':show n
+
+-- App seems kinda hard so gonna take a chill, do App,Cond later
 
 -- inferPolyType' :: Expr -> TEnv -> Int -> (Sub, Type, Int)
 -- inferPolyType' 
