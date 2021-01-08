@@ -46,29 +46,38 @@ printXMLs
 -- Part I
 
 skipSpace :: String -> String
-skipSpace
-  = undefined
+skipSpace s@(c:cs)
+  | isSpace c = skipSpace cs
+  | otherwise = s
 
 getAttribute :: String -> XML -> String
-getAttribute 
-  = undefined
+getAttribute attr Null = ""
+getAttribute attr (Text s) = ""
+getAttribute attr (Element _ attrs _) = fromMaybe "" $ lookup attr attrs
 
 getChildren :: String -> XML -> [XML]
-getChildren 
-  = undefined
+getChildren nm (Element _ _ chld)
+  = filter isnm chld
+   where
+     isnm :: XML -> Bool 
+     isnm (Element nm' _ _) = nm' == nm
+     isnm _ = False
 
 getChild :: String -> XML -> XML
-getChild 
-  = undefined
+getChild = (head . ) . getChildren
 
 addChild :: XML -> XML -> XML
 -- Pre: the second argument is an Element
-addChild 
-  = undefined
+addChild chld (Element nm attr chrn) = Element nm attr $ chrn ++ [chld]
 
 getValue :: XML -> XML
-getValue 
-  = undefined
+getValue = Text . getStr
+  where
+    getStr :: XML -> String
+    getStr Null               = ""
+    getStr (Text s)           = s
+    getStr (Element _ _ chrn) = concatMap getStr chrn
+
 
 -------------------------------------------------------------------------
 -- Part II
@@ -90,17 +99,15 @@ sentinel
 
 addText :: String -> Stack -> Stack
 -- Pre: There is at least one Element on the stack
-addText 
-  = undefined
+addText s (e:es) = addChild (Text s) e:es
 
 popAndAdd :: Stack -> Stack
 -- Pre: There are at least two Elements on the stack
-popAndAdd 
-  = undefined
+popAndAdd (e:e':es) = addChild e e':es
 
 parseAttributes :: String -> (Attributes, String)
 -- Pre: The XML attributes string is well-formed
-parseAttributes 
+parseAttributes
   = undefined
 
 parse :: String -> XML
