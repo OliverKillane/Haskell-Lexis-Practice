@@ -154,11 +154,8 @@ inferPolyType' (Fun x e) env n
     where
       (sb, te, n') = inferPolyType' e ((x, TVar (newname n)):env) (n+1)
 inferPolyType' (App f a) env n = undefined
-inferPolyType' exp env s = (env, typ, s)
-  where
-    typ = case exp of
-      Number _  -> TInt
-      Boolean _ -> TBool
+inferPolyType' (Number _) env s = (env, TInt, s)
+inferPolyType' (Boolean _) env s = (env, TBool, s)
 
 newname :: Int -> String
 newname n = 't':show n
