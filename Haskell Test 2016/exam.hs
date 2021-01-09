@@ -46,6 +46,7 @@ printXMLs
 -- Part I
 
 skipSpace :: String -> String
+skipSpace "" = ""
 skipSpace s@(c:cs)
   | isSpace c = skipSpace cs
   | otherwise = s
@@ -105,10 +106,26 @@ popAndAdd :: Stack -> Stack
 -- Pre: There are at least two Elements on the stack
 popAndAdd (e:e':es) = addChild e e':es
 
+--Simple function to break a string at a character
+breakAt :: Char -> String -> (String,String)
+breakAt = break . (==)
+
 parseAttributes :: String -> (Attributes, String)
 -- Pre: The XML attributes string is well-formed
-parseAttributes
-  = undefined
+parseAttributes str
+  = (getattrs attrs, text)
+    where
+      getattrs :: String -> Attributes
+      getattrs "" = []
+      getattrs str =  (k,v):(getattrs . skipSpace) rst'
+        where
+          (k, _:rst) = parseName $ skipSpace str
+          (v, _:rst') = (breakAt '\"' . (\(_,_:x) -> x) . breakAt '\"') rst
+      (attrs, _:text) = breakAt '>' str
+
+
+
+
 
 parse :: String -> XML
 -- Pre: The XML string is well-formed
@@ -116,8 +133,17 @@ parse s
   = parse' (skipSpace s) [sentinel]
 
 parse' :: String -> Stack -> XML
-parse' 
-  = undefined
+parse' "" [Element "" [] [xml]] = xml
+parse' ('<':'/':s) stack = parse' rst $ popAndAdd stack
+  where
+    (_,_:rst) = breakAt '>' s
+parse' ('<':s) stack = parse' rem (Element nm attrs [Text txt]:stack)
+  where
+    (nm, rst) = parseName s
+    (elm, rem) = breakAt '<' rst
+    (attrs, txt) = parseAttributes elm
+parse' (_:s) stack = parse' s stack
+
 
 -------------------------------------------------------------------------
 -- Part III
@@ -142,9 +168,50 @@ expandXSL xsl source
   where
     root = Element "/" [] [source] 
 
+
+-- Dosen't work yet darn it
 expandXSL' :: Context -> XSL -> [XML]
-expandXSL' 
-  = undefined
+expandXSL' cxt (Element "for-each" [("select", scp)] chld) 
+  = map 
+    (Element "" [] .
+     flip expandXSL' 
+      (Element "" [] chld)
+    ) 
+    (traverseXML (splitOn '/' scp) cxt)
+
+expandXSL' cxt@(Element _ attrs chld) (Element "value-of" [("select", scp)] [])
+  = [Element "" [] [Text txt]]
+  where
+    (path, name) = breakAt '@' scp
+    cxt' = traverseXML (splitOn '/' path) cxt
+    txt = case name of
+      ('@':name') -> getAttribute name cxt
+      name'       -> getText name chld
+
+expandXSL' cxt (Element nm attr chld) = [Element nm attr (concatMap (expandXSL' cxt) chld)]
+expandXSL' _ xml = [xml]
+
+getText :: String -> [XML] -> String
+getText nm (Element nm' _ [Text s]:xs)
+  | nm == nm' = s
+getText nm (_:xs) = getText nm xs
+getText _ [] = ""
+
+traverseXML :: [String] -> Context -> [XML]
+traverseXML [s] xml@(Element nm _ _)
+  | s == nm = [xml]
+traverseXML (s:ss) xml@(Element nm _ chld)
+  | s == nm = concatMap (traverseXML ss) chld
+traverseXML _ _ = []
+
+splitOn :: Char -> String -> [String]
+splitOn _ "" = []
+splitOn c ts 
+  | null rs = [r]
+  | otherwise = r:splitOn c (tail rs)
+  where
+    (r, rs) = breakAt c ts
+
 
 -------------------------------------------------------------------------
 -- Test data for Parts I and II
